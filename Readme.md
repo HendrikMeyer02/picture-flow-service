@@ -1,58 +1,74 @@
-Um die Authentication API zu starten müssen folgende Pakete installiert werden:
+Authentication API - Picture-Flow
+To start the Authentication API for the Picture-Flow project, follow these steps:
 
-pip install fastapi\[all\]
+Prerequisites
+Install the required Python packages:
+
+```
+pip install fastapi[all]
 pip install pyjwt
 pip install bcrypt
 pip install pexels-api
 pip install pillow
+Navigate to the backend directory using the following command:
+```
 
-Anschließend mit Hilfe von cd in den backend Ordner navigieren
+Start the API using Uvicorn:
 
+```
 uvicorn api:app
+```
+The API will be available at http://localhost:8000.
 
-Startet die API. Diese hört auf den Port 8000.
-Syntax zu den API calls:
-
-http://localhost:8000/auth/login
-
+API Calls
+1. Login
+Endpoint: http://localhost:8000/auth/login
 Request body:
-
+json
+Copy code
 {
-    "email":"...",
-    "password":"..."
+    "email": "...",
+    "password": "..."
 }
+Response:
+If incorrect credentials: Error message
+If successful: Authentication token
+Example test credentials:
 
-als return bekommt ihr entweder einen fehler, wenn falsche zugangsdaten oder ein authToken, wenn richtige Zugangsdaten.
-
-Als Test könnt ihr 
+json
+Copy code
 {
     "email": "naul.peusel@sap.com",
     "password": "1234"
 }
-verwenden.
-Die register funktion unter
-
-http://localhost:8000/auth/register
-
-nimmt folgenden Request Body:
-
+2. Register
+Endpoint: http://localhost:8000/auth/register
+Request body:
+json
+Copy code
 {
-    "username":"...",
-    "email":"...",
-    "password":"..."
+    "username": "...",
+    "email": "...",
+    "password": "..."
 }
-
-auch hier bekommt ihr entweder einen fehler wenn username oder mail schon belegt ist, oder ein authentication token wenn es geklappt hat.
-
-http://localhost:8000/api/pictures/getpicture
-
-benötigt im Header ein Auth Token und liefert anschließend Metadaten über ein Bild mit der Id des Bildes zurück
-
-http://localhost:8000/api/picture/{id}
-
-benötigt im Header ein Auth Token und liefert das zu der ID gehörenden Bild zurück
-
-http://localhost:8000/auth/check 
-nimmt ein auth token im header und liefert entweder eine Response mit Valid Token oder eine Response mit Invalid Token zurück, damit könnt ihr also testen, ob das Token noch valide ist
-
-Zu den Auth Tokens: Alle Requests, die nicht /auth/login oder /auth/register sind, müssen im Request Header als auth ein auth token hinzugefügt bekommen. Ist das nicht der fall, wird eine 401 Unauthorized Response geworfen. Die Auth Tokens laufen ab, aktuell ist nach 3 Tagen eingestellt, auch dann muss ein neues Token per /auth/login angefordert werden. Das Token müsst ihr also irgendwie per cookie oder ähnlichem abspeichern.
+Response:
+If username or email is already taken: Error message
+If successful: Authentication token
+3. Get Picture Metadata
+Endpoint: http://localhost:8000/api/pictures/getpicture
+Headers: Include "Auth-Token" with the authentication token
+Response: Metadata about a picture with the specified ID
+4. Get Picture by ID
+Endpoint: http://localhost:8000/api/picture/{id}
+Headers: Include "Auth-Token" with the authentication token
+Response: The picture corresponding to the provided ID
+5. Check Token Validity
+Endpoint: http://localhost:8000/auth/check
+Headers: Include "Auth-Token" with the authentication token
+Response:
+If valid token: Response with "Valid Token"
+If invalid token: Response with "Invalid Token"
+Note on Auth Tokens
+All requests, except /auth/login and /auth/register, must include an "Auth-Token" in the request header. Failure to do so results in a 401 Unauthorized response.
+Auth tokens expire; currently set to 3 days. After expiration, obtain a new token using /auth/login.
+Save the token using cookies or a similar method for subsequent requests.
