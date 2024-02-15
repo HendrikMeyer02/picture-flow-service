@@ -17,7 +17,7 @@ Navigate to the backend directory using the following command:
 Start the API using Uvicorn:
 
 ```
-uvicorn api:app
+uvicorn api:app --reload
 ```
 The API will be available at http://localhost:8000.
 
