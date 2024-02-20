@@ -22,21 +22,25 @@ class UserNotFoundError(Exception):
 async def adduser(user):
     plain_password = user["password"]
     hashed_password = bcrypt.hashpw(plain_password.encode('utf-8'), bcrypt.gensalt(rounds=12))
+    
     with open("./user.json", 'r') as t:
         users = json.load(t)
+
     for i in users:
-        if(i["email"] == user["email"]):
-            raise EmailExistsError("User existiert bereits")
-        if(i["username"] == user["username"]):
-            raise UserExistsError("User mit email existiert bereits")
+        if i["email"] == user["email"]:
+            raise UserExistsError("Email already exists")
+        elif i["username"] == user["username"]:
+            raise UserExistsError("Username already exists")
+
     users.append({
-        "id":await genUserId(),
-        "username":user["username"],
-        "email":user["email"],
-        "password":hashed_password.decode('utf-8')
+        "id": await genUserId(),
+        "username": user["username"],
+        "email": user["email"],
+        "password": hashed_password.decode('utf-8')
     })
-    with open("./user.json","w") as l:
-        json.dump(users,l,indent=4)
+
+    with open("./user.json", "w") as l:
+        json.dump(users, l, indent=4)
 
 async def checkPassword(password, email):
     user = await getUser(email)
