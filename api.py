@@ -46,8 +46,8 @@ async def root(request: Request):
             raise HTTPException(status_code=400, detail="Bad Request", headers={"X-Error": "Bad Request"})
     try:
         await adduser(auth)
-    except UserExistsError:
-        raise HTTPException(status_code=400, detail="User already exists", headers={"X-Error": "User already exists"})
+    except UserExistsError as e:
+        raise HTTPException(status_code=400, detail=str(e), headers={"X-Error": str(e)})
     return {"AuthToken": await genToken(auth["email"])}
 
 @app.get("/auth/check",status_code=200)
