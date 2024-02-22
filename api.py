@@ -120,6 +120,19 @@ async def root(request: Request, profile_id):
     filename = await getProfilePicturePath(profile_id)
     return FileResponse(f"./pictures/{filename}")
 
+@app.post("api/profilepicture")
+async def root(request: Request):
+    await checkAuth(request)
+    body = await request.json()
+    if "file" not in body:
+        raise HTTPException(400, "File Missing")
+    image_as_bytes = str.encode(body["file"])  # convert string to bytes
+    img_recovered = base64.b64decode(image_as_bytes)
+    user = await getUserFromToken(request.headers["auth"])
+    picture_id = await editProfilePicture(user["id"], img_recovered)
+    return {"picture_id": f"{picture_id}"}
+    
+
 @app.get("/api/picture/{picture_id}")
 async def root(request: Request, picture_id):
     await checkAuth(request)
@@ -209,7 +222,18 @@ async def checkProfilePictureExists(picture_id):
         l = json.load(t)
         if not picture_id in l or not os.path.isfile(f"./profilepictures/{picture_id}.png"):
             raise HTTPException(status_code=404, detail="Picture not found", headers={"X-Error": "File not found"})
-        
+       
+async def editProfilePicture(profile_id):
+    filename = f"{profile_id}.png"
+    picture_path = f"./pictures" + filename
+    with open(picture_path, "wb") as picture_file:
+        picture_file.write(await FileResponse(f"./pictures/{filename}"))
+    with open("profile_picture.json", "r") as json_file:
+        profile_picture_data = json.load(json_file)
+    profile_picture_data[profile_id] = filename
+    with open("profile_picture.json", "w") as json_file:
+        json.dump(profile_picture_data, json_file) 
+    return f"{profile_id}.png"
 
 async def deletePicture(picture_id):
     with open("./pictures.json", "r") as f:
