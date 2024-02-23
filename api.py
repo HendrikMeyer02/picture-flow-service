@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException, UploadFile
+from fastapi import FastAPI, File, Request, HTTPException, UploadFile
+import uvicorn
 from cryptbackend import adduser, UserExistsError, checkPassword, genToken, checkAuth, getUserFromToken, mailInUse, hashPassword, usernameInUse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -117,8 +118,19 @@ async def root(request: Request):
 async def root(request: Request, profile_id):
     await checkAuth(request)
     await checkProfilePictureExists(profile_id)
-    filename = await getProfilePicturePath(profile_id)
-    return FileResponse(f"./pictures/{filename}")
+    file = f"./pictures/{profile_id}.png"
+    return FileResponse(file)
+
+@app.post("/api/profilepicture")
+async def root(request: Request, file: UploadFile = File(...)):
+    await checkAuth(request)
+    if file.filename == "":
+        raise HTTPException(400, "File Missing")
+    img_recovered = await file.read()
+    user = await getUserFromToken(request.headers["auth"])
+    picture_id = await editProfilePicture(user["id"], img_recovered)
+    return {"picture_id": f"{picture_id}"}
+    
 
 @app.get("/api/picture/{picture_id}")
 async def root(request: Request, picture_id):
@@ -196,20 +208,34 @@ async def genProfilePictureId():
         while True:
             t = random.randrange(100000000000000)
             if str(t) not in l:
-                return t
-            
-async def getProfilePicturePath(user_id):
-    with open("./profilepictures.json", "r") as t:
-        l = json.load(t)
-        return l[str(user_id)]
-        
+                return t        
 
 async def checkProfilePictureExists(picture_id):
     with open("./profilepictures.json", "r") as t:
         l = json.load(t)
         if not picture_id in l or not os.path.isfile(f"./profilepictures/{picture_id}.png"):
             raise HTTPException(status_code=404, detail="Picture not found", headers={"X-Error": "File not found"})
-        
+       
+async def editProfilePicture(profile_id, img_recovered):
+    filename = f"{profile_id}.png"
+    picture_path = f"./pictures/{filename}"
+    
+    try:
+        with open(picture_path, "wb") as picture_file:
+            picture_file.write(img_recovered)
+
+        with open("./profilepictures.json", "r") as json_file:
+            profile_picture_data = json.load(json_file)
+
+        profile_picture_data[profile_id] = filename
+
+        with open("./profilepictures.json", "w") as json_file:
+            json.dump(profile_picture_data, json_file)
+
+        return filename
+    except Exception as e:
+        print(e)
+        raise HTTPException(500, "Internal Server Error")
 
 async def deletePicture(picture_id):
     with open("./pictures.json", "r") as f:
@@ -232,4 +258,3 @@ async def createPicture(author, width, heigth, description, picture_id):
         l[picture_id] = new_picture
     with open("./pictures.json", "w") as t:
         json.dump(l,t,indent=4)
-
