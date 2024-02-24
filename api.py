@@ -6,6 +6,10 @@ from fastapi.responses import FileResponse
 from PIL import Image
 import json, os, random, base64
 
+from redis import asyncio as aioredis
+
+r = aioredis.from_url("redis://default:WvxzTaBH7S13YqrAjrMIPXEW8iIHUQCQ@redis-18108.c299.asia-northeast1-1.gce.cloud.redislabs.com:18108",
+                       decode_responses=True)
 app = FastAPI()
 
 origins = [
@@ -24,19 +28,21 @@ app.add_middleware(
 
 @app.post("/auth/login", status_code=200)
 async def root(request: Request):
-    with open("./user.json", "r") as t:
-        users = json.load(t)
-        try:
-            auth = await request.json()
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Bad Request", headers={"X-Error": "Bad Request"})
-        if "email" not in auth or "password" not in auth:
-            raise HTTPException(status_code=400, detail="Bad Request", headers={"X-Error": "Bad Request"})
-        for i in users:
-            if(i["email"] == auth["email"] and await checkPassword(auth["password"], auth["email"])):
-                return {"AuthToken": await genToken(auth["email"])}
-    raise HTTPException(status_code=401, detail="Unauthorized", headers={"X-Error": "Unauthorized"})
+    try:
+        auth = await request.json()
+        email = auth.get("email")
+        password = auth.get("password")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Bad Request", headers={"X-Error": "Bad Request"})
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Bad Request", headers={"X-Error": "Bad Request"})
 
+    if await checkPassword(password, email):
+        auth_token = await genToken(email)
+        return {"AuthToken": auth_token}
+    else:
+        raise HTTPException(status_code=401, detail="Unauthorized", headers={"X-Error": "Unauthorized"})
+    
 @app.post("/auth/register", status_code=200)
 async def root(request: Request):
     try:
@@ -59,17 +65,28 @@ async def root(request: Request):
 @app.get("/api/pictures/getpicture")
 async def root(request: Request, amount: int = 1):
     await checkAuth(request)
+
     ret = []
-    with open("./pictures.json", "r") as t:
-        listpictures = list(json.load(t).items())
-        for i in range(0,amount):
-            l = random.choice(listpictures)
-            listpictures.remove(l)
-            g = l[1]
-            g["id"] = l[0]
-            g["authorName"] = await getAuthorName(g["author"])
-            ret.append(g)
-        return {"pictures": ret}
+    picture_keys = await r.keys("picture:*")
+    
+    if len(picture_keys) > 0:
+        selected_keys = random.sample(picture_keys, min(len(picture_keys), amount))
+        
+        pipe = r.pipeline()
+        for key in selected_keys:
+            pipe.hgetall(key)
+        pictures = await pipe.execute()
+
+        for picture_data, key in zip(pictures, selected_keys):
+            picture_id = key.split(":")[-1]
+            picture_data["id"] = picture_id
+
+            author_id = picture_data["author"]
+            picture_data["authorName"] = await getAuthorName(author_id)
+            ret.append(picture_data)
+
+    return {"pictures": ret}
+
     
 @app.get("/api/pictures/getpicturesofprofile/{profile_id}")
 async def root(request: Request, profile_id):
@@ -197,17 +214,13 @@ async def genPictureId():
                 return t
         
 async def getAuthorName(profile_id):
-    with open("./user.json", "r") as t:
-        users = json.load(t)
-        for i in users:
-            if str(i["id"]) == profile_id:
-                return i["username"]
+    user_data = await r.hgetall(f'user:{profile_id}')
+    return user_data.get('username')
 
 async def checkExists(picture_id):
-    with open("./pictures.json", "r") as t:
-        l = json.load(t)
-        if not picture_id in l or not os.path.isfile(f"./pictures/{picture_id}.png"):
-            raise HTTPException(status_code=404, detail="Picture not found", headers={"X-Error": "File not found"})
+    exists = await r.exists(f"picture:{picture_id}")
+    if not exists or not os.path.isfile(f"./pictures/{picture_id}.png"):
+        raise HTTPException(status_code=404, detail="Picture not found", headers={"X-Error": "File not found"})
 
 async def genProfilePictureId():
     with open("./profilepictures.json", "r") as t:
