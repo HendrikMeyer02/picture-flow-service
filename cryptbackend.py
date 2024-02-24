@@ -1,6 +1,14 @@
 import bcrypt, json, jwt, random
 from datetime import datetime, timedelta
 from fastapi import HTTPException
+from redis import asyncio as aioredis
+
+
+#It is not safe to store passwords as text, 
+#but only few people has access to it and soon after presenting 
+#I will remove database Redis Cloud account that's why I left it in plain text.
+r = aioredis.from_url("redis://default:WvxzTaBH7S13YqrAjrMIPXEW8iIHUQCQ@redis-18108.c299.asia-northeast1-1.gce.cloud.redislabs.com:18108", 
+                      decode_responses=True)
 
 secret = "LAWDKAOSKDPOAWKasdka02ri1932ruijidosd098awuqr"
 
@@ -47,20 +55,28 @@ async def checkPassword(password, email):
     hashedpw = user["password"]
     return bcrypt.checkpw(password.encode('utf-8'), hashedpw.encode('utf-8'))
 
+#For now it just iterates through all users and checks if the email is in the database
+#It is not efficient and will be changed in the future
 async def getUser(email):
-    with open("./user.json", "r") as t:
-        users = json.load(t)
-    for i in users:
-        if i["email"] == email:
-            return i
-    raise UserNotFoundError("Unable to find a user with provided email")
+    usersList = {}
+    
+    async for key in r.scan_iter("user:*"):
+        userData = await r.hgetall(key)
+        if userData.get('email') == email:
+            usersList = userData
+            break
+    
+    if usersList:
+        return usersList
+    else:
+        raise UserNotFoundError("Unable to find a user with provided email")
+
 
 async def getUserId(email):
-    with open("./user.json", "r") as t:
-        users = json.load(t)
-    for i in users:
-        if i["email"] == email:
-            return i["id"]
+    for key in r.scan_iter("user:*"):
+        emailField = r.hget(key, "email")
+        if emailField == email:
+            return key.split(":")[1]
     raise UserNotFoundError("Unable to find a user with provided email")
 
 async def genToken(email):
