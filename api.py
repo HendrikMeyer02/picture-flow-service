@@ -172,6 +172,13 @@ async def create_upload_file(request: Request):
     
     return {"picture_id": f"{picture_id}"}
     
+@app.get("api/usernames")
+async def getUsernames(request : Request):
+    await checkAuth(request)
+    with open("./user.json", "r") as t:
+        users = json.load(t)
+        usernames = [user["username"] for user in users]
+        return {'usernames': usernames}
     
 async def checkIsOwnPicture(picture_id, user):
     with open("./pictures.json", "r") as l:
