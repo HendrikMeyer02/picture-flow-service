@@ -133,15 +133,13 @@ async def usernameInUse(username, userusername):
 
 
 
+           
 async def genUserId():
-    with open("./user.json", "r") as t:
-        l = json.load(t)
-        while True:
-            t = random.randrange(100000000000000)
-            for i in l:
-                if i["id"] == str(t):
-                    break
-                return t
+    while True:
+        userID = random.randrange(100000000000000)
+        exists = r.exists(f"user:{userID}")
+        if not exists:
+            return userID
             
 async def getUserFromToken(token):
     decoded = jwt.decode(token, secret, algorithms=["HS256"])
