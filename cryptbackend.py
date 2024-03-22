@@ -7,7 +7,7 @@ from redis import asyncio as aioredis
 #It is not safe to store passwords as text, 
 #but only few people has access to it and soon after presenting 
 #I will remove database Redis Cloud account that's why I left it in plain text.
-r = aioredis.from_url("redis://default:WvxzTaBH7S13YqrAjrMIPXEW8iIHUQCQ@redis-18108.c299.asia-northeast1-1.gce.cloud.redislabs.com:18108", 
+r = aioredis.from_url("redis://default:d9VRpwCIqwzvK2vUJFqy81qFAQaqifEp@redis-14795.c302.asia-northeast1-1.gce.cloud.redislabs.com:14795", 
                       decode_responses=True)
 
 secret = "LAWDKAOSKDPOAWKasdka02ri1932ruijidosd098awuqr"
@@ -30,25 +30,20 @@ class UserNotFoundError(Exception):
 async def adduser(user):
     plain_password = user["password"]
     hashed_password = bcrypt.hashpw(plain_password.encode('utf-8'), bcrypt.gensalt(rounds=12))
-    
-    with open("./user.json", 'r') as t:
-        users = json.load(t)
 
-    for i in users:
-        if i["email"] == user["email"]:
-            raise UserExistsError("Email already exists")
-        elif i["username"] == user["username"]:
-            raise UserExistsError("Username already exists")
+    existing_user = await r.hgetall(f"user:{user['email']}")
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    user_id = await genUserId()
 
-    users.append({
-        "id": await genUserId(),
+    await r.hset(f"user:{user_id}", mapping={
+        "id": user_id,
         "username": user["username"],
         "email": user["email"],
         "password": hashed_password.decode('utf-8')
     })
 
-    with open("./user.json", "w") as l:
-        json.dump(users, l, indent=4)
+    await r.set(f"user_email_to_id:{user['email']}", user_id)
 
 async def checkPassword(password, email):
     user = await getUser(email)
@@ -108,28 +103,21 @@ async def checkAuth(request):
             raise HTTPException(status_code=401, detail="Invalid Token", headers={"X-Error": "Invalid Token"})
     raise HTTPException(status_code=401, detail="Unauthorized", headers={"X-Error": "Unauthorized"})
 
-async def mailInUse(email, useremail):
-    if email == useremail:
+async def mailInUse(email, current_email):
+    if email == current_email:
         return False
-    with open("./user.json", "r") as u:
-        users = json.load(u)
-        for i in users:
-            if i["email"] == email:
-                return True
-    return False
+    exists = await r.exists(f"user_email_to_id:{email}")
+    return exists
+
 
 async def hashPassword(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12))
 
-async def usernameInUse(username, userusername):
-    if username == userusername:
+async def usernameInUse(username, current_username):
+    if username == current_username:
         return False
-    with open("./user.json", "r") as u:
-        users = json.load(u)
-        for i in users:
-            if i["username"] == username:
-                return True
-    return False
+    exists = await r.exists(f"username_to_id:{username}")
+    return exists
 
 
 

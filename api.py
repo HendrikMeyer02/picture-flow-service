@@ -8,7 +8,7 @@ import json, os, random, base64
 import aiofiles
 from redis import asyncio as aioredis
 
-r = aioredis.from_url("redis://default:WvxzTaBH7S13YqrAjrMIPXEW8iIHUQCQ@redis-18108.c299.asia-northeast1-1.gce.cloud.redislabs.com:18108",
+r = aioredis.from_url("redis://default:d9VRpwCIqwzvK2vUJFqy81qFAQaqifEp@redis-14795.c302.asia-northeast1-1.gce.cloud.redislabs.com:14795",
                        decode_responses=True)
 app = FastAPI()
 
