@@ -1,4 +1,4 @@
-import bcrypt, json, jwt, random
+import bcrypt, jwt, random
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from redis import asyncio as aioredis
