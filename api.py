@@ -1,3 +1,5 @@
+##IMplemnt search by username
+
 from fastapi import FastAPI, File, Request, HTTPException, UploadFile
 import uvicorn
 from cryptbackend import adduser, UserExistsError, checkPassword, genToken, checkAuth, getUserFromToken, mailInUse, hashPassword, usernameInUse
@@ -176,19 +178,27 @@ async def create_upload_file(request: Request):
     body = await request.json()
     if "file" not in body:
         raise HTTPException(400, "File Missing")
-    image_as_bytes = str.encode(body["file"])  # convert string to bytes
-    img_recovered = base64.b64decode(image_as_bytes)
+    image_as_bytes = base64.b64decode(body["file"]) 
     user = await getUserFromToken(request.headers["auth"])
-    description = ""
-    if "description" in body:
-        description = body["description"]
-    picture_id = await genPictureId()
-    with open(f"./pictures/{picture_id}.png", "wb") as f:
-        f.write(img_recovered)
-    img = Image.open(f"./pictures/{picture_id}.png")
-    await createPicture(str(user["id"]), img.width, img.height, description, picture_id)
+    description = body.get("description", "")
+    picture_id = await genPictureId(r)
     
-    return {"picture_id": f"{picture_id}"}
+    picture_path = f"./pictures/{picture_id}.png"
+    with open(picture_path, "wb") as f:
+        f.write(image_as_bytes)
+
+    img = Image.open(picture_path)
+    
+    picture_info = {
+        "author": str(user["id"]),
+        "width": img.width,
+        "height": img.height,
+        "description": description
+    }
+    await r.hset(f'picture:{picture_id}', mapping=picture_info)
+    await createPicture(user["id"], img.width, img.height, description, picture_id)
+    
+    return {"picture_id": picture_id}
     
 @app.get("api/usernames")
 async def getUsernames(request : Request):
@@ -208,11 +218,11 @@ async def checkIsOwnPicture(picture_id, user):
     else:
         raise HTTPException(401, "Unauthorized")
 
-async def genPictureId():
+async def genPictureId(r):
     while True:
-        picID = random.randrange(100000000000000)
-        exists = r.exists(f"picture:{picID}")
-        if not exists or not os.path.isfile(f"./pictures/{picID}.png"):
+        picID = random.randrange(100000000)
+        exists = await r.exists(f"picture:{picID}")
+        if not exists:
             return picID
         
 async def getAuthorName(profile_id):
@@ -226,7 +236,7 @@ async def checkExists(picture_id):
 
 async def genProfilePictureId():
     while True:
-        picID = random.randrange(100000000000000)
+        picID = random.randrange(100000000)
         exists = r.exists(f"profilePic:{picID}")
         if not exists or not os.path.isfile(f"./profilepictures/{picID}.png"):
             return picID
@@ -262,11 +272,11 @@ async def deletePicture(picture_id):
         os.remove(pathPicture)
 
 
-async def createPicture(author, width, heigth, description, picture_id):
-    new_picture = {
-        "author" : author,
-        "width" : width,
-        "heigth" : heigth,
-        "description" : description
-    }
-    await r.hset(f"picture:{picture_id}", new_picture)
+async def createPicture(author, width, height, description, picture_id):
+    await r.hset(f"picture:{picture_id}", mapping={
+        "author": author,
+        "width": str(width), 
+        "height": str(height),
+        "description": description
+    })
+
