@@ -43,7 +43,7 @@ async def adduser(user):
         "password": hashed_password.decode('utf-8')
     })
 
-    await r.set(f"user_email_to_id:{user['email']}", user_id)
+    await r.hset("user:lookup:emails", user['email'], user_id)
 
 async def checkPassword(password, email):
     user = await getUser(email)
@@ -106,7 +106,7 @@ async def checkAuth(request):
 async def mailInUse(email, current_email):
     if email == current_email:
         return False
-    exists = await r.exists(f"user_email_to_id:{email}")
+    exists = await r.exists(f"user:{email}")
     return exists
 
 
@@ -125,7 +125,7 @@ async def usernameInUse(username, current_username):
 async def genUserId():
     while True:
         userID = random.randrange(100000000000000)
-        exists = r.exists(f"user:{userID}")
+        exists = await r.exists(f"user:{userID}")
         if not exists:
             return userID
             
